@@ -19,8 +19,6 @@
 -- Constants
 -- ---------------------------------------------------------------------------
 
-local STAIR_NODE_NAME = "stairs:stair_tinblock"
-
 local H_SPEED        = 2.5   -- horizontal nodes / second
 local V_SPEED        = 3.0   -- vertical nodes / second (slightly higher to
                               -- ensure gravity is fully overcome each tick)
@@ -28,6 +26,27 @@ local MAX_STEPS      = 32    -- stair scan depth
 local MAX_STACK      = 10    -- max vertically stacked controllers
 local SCAN_INTERVAL  = 1.0   -- controller timer interval (seconds)
 local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
+
+-- ---------------------------------------------------------------------------
+-- Stair detection helper
+-- ---------------------------------------------------------------------------
+
+local function is_stair(node_name)
+    if not node_name or node_name == "air" or node_name == "ignore" then
+        return false
+    end
+    -- Check if it belongs to the "stair" group (standard for Minetest/Luanti and MineClone)
+    local stair_group = minetest.get_item_group(node_name, "stair")
+    if stair_group and stair_group > 0 then
+        return true
+    end
+    -- Check if name contains "stair" (case-insensitive) as a fallback
+    local lower_name = node_name:lower()
+    if lower_name:find("stair") then
+        return true
+    end
+    return false
+end
 
 -- ---------------------------------------------------------------------------
 -- Direction vectors
@@ -65,7 +84,7 @@ local function scan_diagonal(sx, sy, sz, ovx, ovz, dir_y)
     for i = 1, MAX_STEPS do
         local px, py, pz = sx + ovx*i, sy + dir_y*i, sz + ovz*i
         local node = minetest.get_node_or_nil({ x=px, y=py, z=pz })
-        if node and node.name == STAIR_NODE_NAME then
+        if node and is_stair(node.name) then
             misses = 0
             path[#path+1] = { x=px, y=py, z=pz }
         else
@@ -152,7 +171,7 @@ local function refresh_path(ctrl_pos)
     else
         meta:set_string("infotext",
             "Escalator Controller\n" ..
-            "⚠ No stairs:stair_tinblock detected!\n" ..
+            "⚠ No stair nodes detected!\n" ..
             "Build stair nodes diagonally from this block.")
     end
 
@@ -297,9 +316,15 @@ end
 -- Node definition
 -- ---------------------------------------------------------------------------
 
+-- Dynamic groups for the controller compatibility
+local controller_groups = { cracky=1, oddly_breakable_by_hand=1 }
+if minetest.get_modpath("mcl_core") then
+    controller_groups = { pickaxey=1, cracky=1 }
+end
+
 minetest.register_node("escalator:controller", {
     description = "Escalator Controller\n" ..
-                  "Place at the base of a stairs:stair_tinblock staircase.\n" ..
+                  "Place at the base of a staircase (works with all stairs).\n" ..
                   "Direction and orientation are detected automatically.",
     tiles = {
         "escalator_controller.png",
@@ -309,8 +334,9 @@ minetest.register_node("escalator:controller", {
         "escalator_controller.png",
         "escalator_controller_front.png",
     },
-    groups            = { cracky=1, oddly_breakable_by_hand=1 },
-    sounds            = default and default.node_sound_metal_defaults() or {},
+    groups            = controller_groups,
+    sounds            = (default and default.node_sound_metal_defaults) and default.node_sound_metal_defaults() or
+                        (mcl_sounds and mcl_sounds.node_sound_metal_defaults) and mcl_sounds.node_sound_metal_defaults() or {},
     paramtype2        = "facedir",
     is_ground_content = false,
 
@@ -372,25 +398,33 @@ minetest.register_node("escalator:controller", {
 -- Craft recipe
 -- ---------------------------------------------------------------------------
 
-minetest.register_craft({
-    output = "escalator:controller",
-    recipe = {
-        { "",                    "default:mese_crystal",   ""                    },
-        { "default:steel_ingot", "default:steel_ingot",    "default:steel_ingot" },
-        { "default:steel_ingot", "",                       "default:steel_ingot" },
-    },
-})
+if minetest.get_modpath("default") then
+    minetest.register_craft({
+        output = "escalator:controller",
+        recipe = {
+            { "",                    "default:mese_crystal",   ""                    },
+            { "default:steel_ingot", "default:steel_ingot",    "default:steel_ingot" },
+            { "default:steel_ingot", "",                       "default:steel_ingot" },
+        },
+    })
+elseif minetest.get_modpath("mcl_core") then
+    local redstone = minetest.get_modpath("mcl_core") and "mcl_core:redstone" or "mcl_core:gold_ingot"
+    minetest.register_craft({
+        output = "escalator:controller",
+        recipe = {
+            { "",                    redstone,                ""                    },
+            { "mcl_core:iron_ingot", "mcl_core:iron_ingot",   "mcl_core:iron_ingot" },
+            { "mcl_core:iron_ingot", "",                      "mcl_core:iron_ingot" },
+        },
+    })
+end
 
 -- ---------------------------------------------------------------------------
 -- Dependency guard
 -- ---------------------------------------------------------------------------
 
 minetest.register_on_mods_loaded(function()
-    if not minetest.registered_nodes[STAIR_NODE_NAME] then
-        minetest.log("warning",
-            "[escalator] '" .. STAIR_NODE_NAME ..
-            "' is not registered – transport will not activate.")
-    end
+    minetest.log("action", "[escalator] Loaded and ready to work with all stairs.")
 end)
 
 -- ---------------------------------------------------------------------------
@@ -434,7 +468,7 @@ minetest.register_chatcommand("escalator_info", {
         end
 
         return false,
-            "Look at an escalator:controller, or stand on a stair_tinblock " ..
+            "Look at an escalator:controller, or stand on a stair node " ..
             "that belongs to an escalator."
     end,
 })
@@ -443,5 +477,4 @@ minetest.register_chatcommand("escalator_info", {
 -- Loaded
 -- ---------------------------------------------------------------------------
 
-minetest.log("action",
-    "[escalator] v5 loaded.  Target node: " .. STAIR_NODE_NAME)
+minetest.log("action", "[escalator] loaded. Ready for all stairs.")
