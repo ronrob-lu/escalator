@@ -1,96 +1,61 @@
-# escalator — Luanti (Minetest) Mod
+# 📶 Escalators: Smooth, Effortless Multi-Level Travel!
 
-A fully functional escalator system that transports **players, NPCs, and mobs**
-smoothly along a diagonal stair incline built from `stairs:stair_tinblock` nodes.
+Tired of jumping up stairs or climbing boring ladders? Elevate your world's transportation system with the **Escalators** mod for Luanti (Minetest)!
 
----
-
-## Features
-
-| Feature | Detail |
-|---|---|
-| **Controller block** | `escalator:controller` – place at the base of a staircase |
-| **Direction** | Configurable **Up** or **Down** per controller |
-| **Orientation** | North / South / East / West cardinal facing |
-| **Transport** | Moves players, NPCs, and mobs via velocity override |
-| **Legacy mob support** | Positional nudge via ABM for mobs without `set_velocity` |
-| **Stack rule** | Controllers stack up to **10 high**, enforced on placement |
-| **Formspec UI** | Right-click the controller to configure |
-| **Performance** | Scans only the active stair-path; no global entity sweeps |
-| **Tunable** | All speeds and lengths configurable via `settingtypes.txt` |
+Whether you're building a bustling shopping mall, a futuristic transit hub, a massive subway station, or a multi-story base, these escalators transport you, your pets, and mobs quickly and smoothly.
 
 ---
 
-## Quick-start
+## ⚡ Key Features
 
-1. **Copy** the `escalator/` folder into your game's `mods/` directory.
-2. **Enable** the mod in the Content / Mods menu or `minetest.conf`.
-3. **Craft** the controller:
-
-```
-  [ mese_crystal ]
-  [steel][steel][steel]
-  [steel][     ][steel]
-```
-
-4. **Build** a staircase of `stairs:stair_tinblock` nodes rising diagonally from
-   where you'll place the controller.
-5. **Place** the controller at the bottom (or top) of the staircase.
-6. **Right-click** the controller and set:
-   - **Direction** – Up or Down.
-   - **Orientation** – the cardinal direction the stairs face away from the controller.
-7. Step onto any stair — you'll be smoothly carried along!
+* **🏃 Automatic & Smooth Movement:** Just step onto the escalator stairs, and let the system glide you to your destination at a comfortable, steady speed.
+* **🧠 Zero Configuration (Plug-and-Play):** No complex menus or wiring needed! Place the controller at the base of the stairs, and it will **automatically** scan and detect your staircase.
+* **🐕 Mob & Pet Friendly:** Mobs, NPCs, and animals can ride too! Perfect for moving farm animals or guiding guards in your base.
+* **🏢 Infinite Vertical Stacking:** Stack controllers up to **10 blocks high** to build towering multi-story escalators.
+* **🎨 Visual Integration:** Built to work beautifully with standard tin stairs or any stair group block in your favorite game.
 
 ---
 
-## Staircase construction example
+## 🛠️ How to Build & Ride
 
-For an **Up** escalator facing **North** (`-Z` axis):
+Creating an escalator is incredibly easy:
 
-```
-         [stair] ← step 4  (ctrl.x, ctrl.y+4, ctrl.z-4)
-        [stair]  ← step 3
-       [stair]   ← step 2
-      [stair]    ← step 1
-[CTRL]           ← controller at (x, y, z)
-```
+### 1. Craft the Controller
 
-The controller scans up to `MAX_STAIR_LENGTH` (default 32) steps along the diagonal.
-Scanning stops automatically when two consecutive stair positions are absent.
+**Minetest Game (MTG) Recipe:**
+* Combine Steel Ingots and a Mese Crystal:
+  ```text
+  [           ]  [Mese Crystal]  [           ]
+  [Steel Ingot]  [Steel Ingot]   [Steel Ingot]
+  [Steel Ingot]  [           ]   [Steel Ingot]
+  ```
 
----
+**MineClone2 / VoxeLibre Recipe:**
+* Combine Iron Ingots and a piece of Redstone:
+  ```text
+  [           ]  [Redstone]     [           ]
+  [Iron Ingot]   [Iron Ingot]    [Iron Ingot]
+  [Iron Ingot]   [          ]    [Iron Ingot]
+  ```
 
-## Configuration (`settingtypes.txt`)
+### 2. Build Your Staircase
+* Build a diagonal staircase rising up or down using any standard stair blocks (like Tin Block Stairs).
 
-| Setting | Default | Description |
-|---|---|---|
-| `escalator_h_speed` | `1.5` | Horizontal speed (nodes/s) |
-| `escalator_v_speed` | `1.5` | Vertical speed (nodes/s) |
-| `escalator_max_stair_length` | `32` | Max stair nodes scanned |
-| `escalator_timer_interval` | `0.15` | Controller timer interval (s) |
-| `escalator_max_stack` | `10` | Max controller stack height |
-
----
-
-## Debug command
-
-```
-/escalator_info
-```
-Look at a controller (within 8 nodes) and run this command to see its current
-configuration and how many stair steps were detected.
+### 3. Place & Activate
+* Place the **Escalator Controller** block at the bottom of the staircase, facing the direction of the stairs.
+* Right-click the controller to run an instant scan and check if it detected the stairs.
+* Step on the stairs, and you will be smoothly whisked away!
 
 ---
 
-## Compatibility
-
-- **Luanti** (formerly Minetest) ≥ 5.6
-- **stairs** mod (standard in almost all games)
-- **mobs_redo / mobs_monster** – supported via ABM positional nudge fallback
-- **MTG (Minetest Game)** – full compatibility
+## 🎮 Make Your Cities Look Real!
+- **Shopping Malls:** Create multiple levels of shops connected by parallel escalators.
+- **Train Stations:** Transport hundreds of players from deep subway levels to the surface.
+- **Futuristic Cities:** Add moving walkways and diagonal escalators to your modern builds.
 
 ---
 
-## License
-
-MIT – do whatever you want, attribution appreciated.
+## 🧩 Compatibility & Requirements
+* Works on **Luanti (Minetest) 5.6+**
+* Seamlessly supports **Minetest Game (MTG)**, **MineClone2**, and **VoxeLibre**
+* Works with standard stair mods and popular mob packs (like `mobs_redo`)!
