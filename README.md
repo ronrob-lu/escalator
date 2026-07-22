@@ -49,26 +49,35 @@ smoothly along a diagonal stair incline built from any stair node (`group:stair`
 
    ![Crafting Controller in VoxeLibre](screenshots/craft-controller-in-voxelibre.png)
 
-4. **Build** a staircase rising diagonally from where you'll place the controller using any stair nodes.
-5. **Place** the controller at the bottom (or top) of the staircase.
-6. Step onto any stair — you'll be smoothly carried along!
+4. **Place the controller block**:
+   - **Upward Escalator**: Place the controller block at the bottom of the staircase.
+   - **Downward Escalator**: Place the controller block at the top platform behind the stairs.
+5. Step onto any stair — you'll be smoothly carried along!
 
 ---
 
-## Staircase construction example
+## 📐 How to Place the Controller
 
-For an **Up** escalator facing **North** (`-Z` axis):
+### ↗️ Upward Escalator
+Place the controller block at the bottom base of the stairs:
 
+```text
+       ↗️ Stair
+     ↗️ Stair
+   ↗️ Stair
+⬛ Controller
 ```
-         [stair] ← step 4  (ctrl.x, ctrl.y+4, ctrl.z-4)
-        [stair]  ← step 3
-       [stair]   ← step 2
-      [stair]    ← step 1
-[CTRL]           ← controller at (x, y, z)
+
+### ↘️ Downward Escalator
+Place the controller block on the top platform directly behind the first descending stair step:
+
+```text
+⬛ Controller ↘️ Stair
+               ↘️ Stair
+                 ↘️ Stair
 ```
 
-The controller scans up to `MAX_STAIR_LENGTH` (default 32) steps along the diagonal.
-Scanning stops automatically when two consecutive stair positions are absent.
+The controller automatically scans up to 32 stairs along the diagonal.
 
 ---
 
