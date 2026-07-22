@@ -19,14 +19,6 @@
 -- Constants
 -- ---------------------------------------------------------------------------
 
-local H_SPEED        = 2.5   -- horizontal nodes / second
-local V_SPEED        = 3.0   -- vertical nodes / second (slightly higher to
-                              -- ensure gravity is fully overcome each tick)
-local MAX_STEPS      = 32    -- stair scan depth
-local MAX_STACK      = 10    -- max vertically stacked controllers
-local SCAN_INTERVAL  = 1.0   -- controller timer interval (seconds)
-local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
-
 -- ---------------------------------------------------------------------------
 -- Stair detection helper
 -- ---------------------------------------------------------------------------
@@ -47,6 +39,14 @@ local function is_stair(node_name)
     end
     return false
 end
+
+local H_SPEED        = 2.5   -- horizontal nodes / second
+local V_SPEED        = 3.0   -- vertical nodes / second (slightly higher to
+                              -- ensure gravity is fully overcome each tick)
+local MAX_STEPS      = 32    -- stair scan depth
+local MAX_STACK      = 10    -- max vertically stacked controllers
+local SCAN_INTERVAL  = 1.0   -- controller timer interval (seconds)
+local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
 
 -- ---------------------------------------------------------------------------
 -- Direction vectors
@@ -316,15 +316,9 @@ end
 -- Node definition
 -- ---------------------------------------------------------------------------
 
--- Dynamic groups for the controller compatibility
-local controller_groups = { cracky=1, oddly_breakable_by_hand=1 }
-if minetest.get_modpath("mcl_core") then
-    controller_groups = { pickaxey=1, cracky=1 }
-end
-
 minetest.register_node("escalator:controller", {
     description = "Escalator Controller\n" ..
-                  "Place at the base of a staircase (works with all stairs).\n" ..
+                  "Place at the base of a staircase.\n" ..
                   "Direction and orientation are detected automatically.",
     tiles = {
         "escalator_controller.png",
@@ -334,9 +328,8 @@ minetest.register_node("escalator:controller", {
         "escalator_controller.png",
         "escalator_controller_front.png",
     },
-    groups            = controller_groups,
-    sounds            = (default and default.node_sound_metal_defaults) and default.node_sound_metal_defaults() or
-                        (mcl_sounds and mcl_sounds.node_sound_metal_defaults) and mcl_sounds.node_sound_metal_defaults() or {},
+    groups            = { cracky=1, oddly_breakable_by_hand=1 },
+    sounds            = default and default.node_sound_metal_defaults() or {},
     paramtype2        = "facedir",
     is_ground_content = false,
 
@@ -408,13 +401,16 @@ if minetest.get_modpath("default") then
         },
     })
 elseif minetest.get_modpath("mcl_core") then
-    local redstone = minetest.get_modpath("mcl_core") and "mcl_core:redstone" or "mcl_core:gold_ingot"
+    local redstone_item = "mesecons_torch:redstoneblock"
+    if minetest.get_modpath("mcl_redstone") and not minetest.get_modpath("mesecons_torch") then
+        redstone_item = "mcl_redstone:redstone_block"
+    end
     minetest.register_craft({
         output = "escalator:controller",
         recipe = {
-            { "",                    redstone,                ""                    },
-            { "mcl_core:iron_ingot", "mcl_core:iron_ingot",   "mcl_core:iron_ingot" },
-            { "mcl_core:iron_ingot", "",                      "mcl_core:iron_ingot" },
+            { "",                    redstone_item,          ""              },
+            { "mcl_core:iron_ingot", "mcl_core:iron_ingot",    "mcl_core:iron_ingot" },
+            { "mcl_core:iron_ingot", "",                       "mcl_core:iron_ingot" },
         },
     })
 end
@@ -423,8 +419,22 @@ end
 -- Dependency guard
 -- ---------------------------------------------------------------------------
 
+-- ---------------------------------------------------------------------------
+-- Dependency guard
+-- ---------------------------------------------------------------------------
+
 minetest.register_on_mods_loaded(function()
-    minetest.log("action", "[escalator] Loaded and ready to work with all stairs.")
+    local found = false
+    for node_name, _ in pairs(minetest.registered_nodes) do
+        if is_stair(node_name) then
+            found = true
+            break
+        end
+    end
+    if not found then
+        minetest.log("warning",
+            "[escalator] No stair nodes registered – transport will not activate.")
+    end
 end)
 
 -- ---------------------------------------------------------------------------
@@ -477,4 +487,5 @@ minetest.register_chatcommand("escalator_info", {
 -- Loaded
 -- ---------------------------------------------------------------------------
 
-minetest.log("action", "[escalator] loaded. Ready for all stairs.")
+minetest.log("action",
+    "[escalator] v5 loaded with universal stair support.")
