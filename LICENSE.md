@@ -1,4 +1,4 @@
-# MIT Licence
+# MIT License
 
 **Copyright (c) 2026 ronrob-lu**
 
@@ -20,7 +20,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
-Licence of the assets: (Creative Commons Zero, CC0)
-	http://creativecommons.org/publicdomain/zero/1.0/
+License of the assets: (Creative Commons Zero, CC0)
+http://creativecommons.org/publicdomain/zero/1.0/
 
-	You can use this content for personal, educational, and commercial purposes.
