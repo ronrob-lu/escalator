@@ -19,27 +19,6 @@
 -- Constants
 -- ---------------------------------------------------------------------------
 
--- ---------------------------------------------------------------------------
--- Stair detection helper
--- ---------------------------------------------------------------------------
-
-local function is_stair(node_name)
-    if not node_name or node_name == "air" or node_name == "ignore" then
-        return false
-    end
-    -- Check if it belongs to the "stair" group (standard for Minetest/Luanti and MineClone)
-    local stair_group = minetest.get_item_group(node_name, "stair")
-    if stair_group and stair_group > 0 then
-        return true
-    end
-    -- Check if name contains "stair" (case-insensitive) as a fallback
-    local lower_name = node_name:lower()
-    if lower_name:find("stair") then
-        return true
-    end
-    return false
-end
-
 local H_SPEED        = 2.5   -- horizontal nodes / second
 local V_SPEED        = 3.0   -- vertical nodes / second (slightly higher to
                               -- ensure gravity is fully overcome each tick)
@@ -47,6 +26,32 @@ local MAX_STEPS      = 32    -- stair scan depth
 local MAX_STACK      = 10    -- max vertically stacked controllers
 local SCAN_INTERVAL  = 1.0   -- controller timer interval (seconds)
 local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
+
+-- ---------------------------------------------------------------------------
+-- Stair detection  (cross-gamepack: MTG, VoxeLibre/MineClone2, etc.)
+-- ---------------------------------------------------------------------------
+--
+-- MTG / Luanti  → nodes are in the "stair" group
+-- VoxeLibre     → stair nodes are in the "mcl_stairs_half" group
+-- Fallback      → node name contains ":stair" (scoped to avoid false positives
+--                 like "signs:to_stairs"; the colon ensures it's the node type,
+--                 not just something with "stair" in an unrelated word)
+
+local function is_stair(node_name)
+    if not node_name or node_name == "air" or node_name == "ignore" then
+        return false
+    end
+    local def = minetest.registered_nodes[node_name]
+    if not def then return false end
+    local groups = def.groups or {}
+    -- MTG / plain Luanti stair group
+    if (groups.stair or 0) > 0 then return true end
+    -- VoxeLibre half-slab/stair group
+    if (groups.mcl_stairs_half or 0) > 0 then return true end
+    -- Scoped name fallback: must have ":stair" so "signs:to_stairs" won't match
+    if node_name:find(":stair") then return true end
+    return false
+end
 
 -- ---------------------------------------------------------------------------
 -- Direction vectors
@@ -171,7 +176,7 @@ local function refresh_path(ctrl_pos)
     else
         meta:set_string("infotext",
             "Escalator Controller\n" ..
-            "⚠ No stair nodes detected!\n" ..
+            "⚠ No stairs:stair_tinblock detected!\n" ..
             "Build stair nodes diagonally from this block.")
     end
 
@@ -318,7 +323,7 @@ end
 
 minetest.register_node("escalator:controller", {
     description = "Escalator Controller\n" ..
-                  "Place at the base of a staircase.\n" ..
+                  "Place at the base of a stairs:stair_tinblock staircase.\n" ..
                   "Direction and orientation are detected automatically.",
     tiles = {
         "escalator_controller.png",
@@ -391,49 +396,32 @@ minetest.register_node("escalator:controller", {
 -- Craft recipe
 -- ---------------------------------------------------------------------------
 
-if minetest.get_modpath("default") then
-    minetest.register_craft({
-        output = "escalator:controller",
-        recipe = {
-            { "",                    "default:mese_crystal",   ""                    },
-            { "default:steel_ingot", "default:steel_ingot",    "default:steel_ingot" },
-            { "default:steel_ingot", "",                       "default:steel_ingot" },
-        },
-    })
-elseif minetest.get_modpath("mcl_core") then
-    local redstone_item = "mesecons_torch:redstoneblock"
-    if minetest.get_modpath("mcl_redstone") and not minetest.get_modpath("mesecons_torch") then
-        redstone_item = "mcl_redstone:redstone_block"
-    end
-    minetest.register_craft({
-        output = "escalator:controller",
-        recipe = {
-            { "",                    redstone_item,          ""              },
-            { "mcl_core:iron_ingot", "mcl_core:iron_ingot",    "mcl_core:iron_ingot" },
-            { "mcl_core:iron_ingot", "",                       "mcl_core:iron_ingot" },
-        },
-    })
-end
-
--- ---------------------------------------------------------------------------
--- Dependency guard
--- ---------------------------------------------------------------------------
+minetest.register_craft({
+    output = "escalator:controller",
+    recipe = {
+        { "",                    "default:mese_crystal",   ""                    },
+        { "default:steel_ingot", "default:steel_ingot",    "default:steel_ingot" },
+        { "default:steel_ingot", "",                       "default:steel_ingot" },
+    },
+})
 
 -- ---------------------------------------------------------------------------
 -- Dependency guard
 -- ---------------------------------------------------------------------------
 
 minetest.register_on_mods_loaded(function()
-    local found = false
-    for node_name, _ in pairs(minetest.registered_nodes) do
-        if is_stair(node_name) then
-            found = true
-            break
-        end
+    -- Count how many registered nodes are recognised as stairs.
+    local count = 0
+    for name, _ in pairs(minetest.registered_nodes) do
+        if is_stair(name) then count = count + 1 end
     end
-    if not found then
+    if count == 0 then
         minetest.log("warning",
-            "[escalator] No stair nodes registered – transport will not activate.")
+            "[escalator] No stair nodes detected in any registered mod. " ..
+            "Escalator transport will not activate until stair nodes are loaded.")
+    else
+        minetest.log("action",
+            "[escalator] Detected " .. count .. " stair node(s) across loaded mods.")
     end
 end)
 
@@ -478,7 +466,7 @@ minetest.register_chatcommand("escalator_info", {
         end
 
         return false,
-            "Look at an escalator:controller, or stand on a stair node " ..
+            "Look at an escalator:controller, or stand on a stair_tinblock " ..
             "that belongs to an escalator."
     end,
 })
@@ -488,4 +476,4 @@ minetest.register_chatcommand("escalator_info", {
 -- ---------------------------------------------------------------------------
 
 minetest.log("action",
-    "[escalator] v5 loaded with universal stair support.")
+    "[escalator] v5 loaded.  Stair detection: group-based (MTG + VoxeLibre compatible)")
