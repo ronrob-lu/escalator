@@ -1,31 +1,18 @@
 -- =============================================================================
--- escalator/init.lua  (v5 – two core bugs fixed)
---
--- Bug 1 – Detection gap (WHY "hard to move, not going up"):
---   escalator_info_at() only probed Y offsets BELOW the player.
---   When the player is mid-transition between stair i and stair i+1, the
---   next stair node is ABOVE the current player Y.  The lookup returned nil,
---   the escalator deactivated, and the player was stuck on the stair face.
---   Fix: probe from +1.0 nodes ABOVE down to 1.5 nodes BELOW player feet.
---
--- Bug 2 – Same direction (WHY "both go same way"):
---   sign = (dir=="up") ? 1 : -1  was applied to BOTH horizontal AND vertical.
---   For a "down" escalator (orient=south, dir=down):
---     ov.z = +1, sign = -1  →  dz = +1 * -1 = -1  (NORTH, WRONG)
---   Horizontal must always go in the orient direction; only Y uses the sign.
+-- escalator/init.lua
 -- =============================================================================
 
 -- ---------------------------------------------------------------------------
--- Constants
+-- Settings  (defined in settingtypes.txt; editable from the main-menu panel)
 -- ---------------------------------------------------------------------------
 
-local H_SPEED        = 2.5   -- horizontal nodes / second
-local V_SPEED        = 3.0   -- vertical nodes / second (slightly higher to
-                              -- ensure gravity is fully overcome each tick)
-local MAX_STEPS      = 32    -- stair scan depth
-local MAX_STACK      = 10    -- max vertically stacked controllers
-local SCAN_INTERVAL  = 1.0   -- controller timer interval (seconds)
-local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
+local S = core.settings
+
+local H_SPEED       = tonumber(S:get("escalator_h_speed"))       or 2.5
+local V_SPEED       = tonumber(S:get("escalator_v_speed"))       or 3.0
+local MAX_STEPS     = tonumber(S:get("escalator_max_stair_length")) or 32
+local SCAN_INTERVAL = tonumber(S:get("escalator_timer_interval")) or 1.0
+local CACHE_TTL     = 2.0   -- not exposed; internal implementation detail
 
 -- ---------------------------------------------------------------------------
 -- Stair detection  (cross-gamepack: MTG, VoxeLibre/MineClone2, etc.)
@@ -33,23 +20,19 @@ local CACHE_TTL      = 2.0   -- stair-map cache lifetime (seconds)
 --
 -- MTG / Luanti  → nodes are in the "stair" group
 -- VoxeLibre     → stair nodes are in the "mcl_stairs_half" group
--- Fallback      → node name contains ":stair" (scoped to avoid false positives
---                 like "signs:to_stairs"; the colon ensures it's the node type,
---                 not just something with "stair" in an unrelated word)
+-- Fallback      → node name contains ":stair" (colon-scoped to avoid false
+--                 positives like "signs:to_stairs")
 
 local function is_stair(node_name)
     if not node_name or node_name == "air" or node_name == "ignore" then
         return false
     end
-    local def = minetest.registered_nodes[node_name]
+    local def = core.registered_nodes[node_name]
     if not def then return false end
     local groups = def.groups or {}
-    -- MTG / plain Luanti stair group
-    if (groups.stair or 0) > 0 then return true end
-    -- VoxeLibre half-slab/stair group
-    if (groups.mcl_stairs_half or 0) > 0 then return true end
-    -- Scoped name fallback: must have ":stair" so "signs:to_stairs" won't match
-    if node_name:find(":stair") then return true end
+    if (groups.stair or 0) > 0 then return true end          -- MTG / Luanti
+    if (groups.mcl_stairs_half or 0) > 0 then return true end -- VoxeLibre
+    if node_name:find(":stair") then return true end          -- scoped fallback
     return false
 end
 
@@ -88,7 +71,7 @@ local function scan_diagonal(sx, sy, sz, ovx, ovz, dir_y)
     local misses = 0
     for i = 1, MAX_STEPS do
         local px, py, pz = sx + ovx*i, sy + dir_y*i, sz + ovz*i
-        local node = minetest.get_node_or_nil({ x=px, y=py, z=pz })
+        local node = core.get_node_or_nil({ x=px, y=py, z=pz })
         if node and is_stair(node.name) then
             misses = 0
             path[#path+1] = { x=px, y=py, z=pz }
@@ -152,7 +135,7 @@ end
 
 local function refresh_path(ctrl_pos)
     local key = key_pos(ctrl_pos)
-    local now = minetest.get_gametime()
+    local now = core.get_gametime()
     local c   = path_cache[key]
     if c and now < c.expires then return c.path, c.orient, c.dir end
 
@@ -166,7 +149,7 @@ local function refresh_path(ctrl_pos)
     end
 
     -- Update controller infotext.
-    local meta = minetest.get_meta(ctrl_pos)
+    local meta = core.get_meta(ctrl_pos)
     if #path > 0 then
         meta:set_string("infotext", string.format(
             "Escalator  |  %s  |  %s  |  %d steps\nRight-click for info",
@@ -176,23 +159,22 @@ local function refresh_path(ctrl_pos)
     else
         meta:set_string("infotext",
             "Escalator Controller\n" ..
-            "⚠ No stairs:stair_tinblock detected!\n" ..
-            "Build stair nodes diagonally from this block.")
+            "⚠ No stair nodes detected nearby.\n" ..
+            "Build a diagonal staircase from this block.")
     end
 
     return path, orient, dir
 end
 
 -- ---------------------------------------------------------------------------
--- BUG 1 FIX – Player-to-stair lookup
+-- Player-to-stair lookup
 -- ---------------------------------------------------------------------------
 --
 -- Player feet Y is ABOVE the stair node integer Y.
 -- When transitioning from step i to step i+1, the next stair node's Y
 -- is HIGHER than the current player Y, so we must probe ABOVE as well.
 --
--- Probe range: +1.0 node above feet  …  −1.5 nodes below feet.
--- This covers all realistic player positions relative to any stair step.
+-- Probe range: +1.0 node above feet … −1.5 nodes below feet.
 
 local PROBE_DY = { 1.0, 0.75, 0.5, 0.25, 0.0, -0.25, -0.5, -0.75, -1.0, -1.25, -1.5 }
 
@@ -211,29 +193,14 @@ local function escalator_info_at(pos)
 end
 
 -- ---------------------------------------------------------------------------
--- BUG 2 FIX – Movement direction
--- ---------------------------------------------------------------------------
---
--- OLD (WRONG):
---   sign = up?1:-1
---   dz = ov.z * SIGN * H_SPEED * dt   ← sign negates horizontal for "down"
---   dy = SIGN * V_SPEED * dt
---
--- For orient=south (ov.z=+1) dir=down (sign=-1):
---   dz = +1 * -1 * H = -H  → moves NORTH  ✗  (same as the "up" escalator!)
---
--- FIX:
---   Horizontal always moves in the orient direction (no sign).
---   Only vertical uses v_sign.
-
--- (Applied in the globalstep below.)
-
--- ---------------------------------------------------------------------------
 -- GlobalStep – player transport (runs every server physics tick)
 -- ---------------------------------------------------------------------------
+--
+-- Horizontal always moves in the orient direction.
+-- Only vertical uses v_sign so that "down" escalators don't reverse direction.
 
-minetest.register_globalstep(function(dtime)
-    for _, player in ipairs(minetest.get_connected_players()) do
+core.register_globalstep(function(dtime)
+    for _, player in ipairs(core.get_connected_players()) do
         local pos = player:get_pos()
         if not pos then goto skip end
 
@@ -241,19 +208,17 @@ minetest.register_globalstep(function(dtime)
         if not info then goto skip end
 
         local ov     = ORIENT_VEC[info.orient]
-        local v_sign = (info.dir == "up") and 1 or -1   -- only Y uses dir
+        local v_sign = (info.dir == "up") and 1 or -1
 
-        -- set_pos: bypasses physics, so no fighting with gravity or friction.
-        -- Horizontal uses orient direction directly (no v_sign).
-        -- Vertical uses v_sign.
+        -- set_pos bypasses physics, so no fighting with gravity or friction.
         player:set_pos({
             x = pos.x + ov.x * H_SPEED * dtime,
             y = pos.y + v_sign * V_SPEED * dtime,
             z = pos.z + ov.z * H_SPEED * dtime,
         })
 
-        -- Belt-and-suspenders: also set velocity so that the physics
-        -- engine reinforces the direction between set_pos calls.
+        -- Also set velocity so the physics engine reinforces direction
+        -- between set_pos calls.
         player:set_velocity({
             x = ov.x * H_SPEED,
             y = v_sign * V_SPEED,
@@ -269,7 +234,7 @@ end)
 -- ---------------------------------------------------------------------------
 
 local function on_timer(pos, elapsed)
-    if minetest.get_node(pos).name ~= "escalator:controller" then
+    if core.get_node(pos).name ~= "escalator:controller" then
         invalidate(pos)
         return false
     end
@@ -285,7 +250,7 @@ local function on_timer(pos, elapsed)
         for _, sp in ipairs(path) do
             for _, dy in ipairs({ 0.4, 0.9, 1.4 }) do
                 local centre = { x=sp.x, y=sp.y+dy, z=sp.z }
-                for _, obj in ipairs(minetest.get_objects_inside_radius(centre, 1.2)) do
+                for _, obj in ipairs(core.get_objects_inside_radius(centre, 1.2)) do
                     if not obj:is_player() then
                         local uid = tostring(obj)
                         if not seen[uid] then
@@ -321,9 +286,9 @@ end
 -- Node definition
 -- ---------------------------------------------------------------------------
 
-minetest.register_node("escalator:controller", {
+core.register_node("escalator:controller", {
     description = "Escalator Controller\n" ..
-                  "Place at the base of a stairs:stair_tinblock staircase.\n" ..
+                  "Place at the base of any diagonal staircase.\n" ..
                   "Direction and orientation are detected automatically.",
     tiles = {
         "escalator_controller.png",
@@ -339,14 +304,14 @@ minetest.register_node("escalator:controller", {
     is_ground_content = false,
 
     on_construct = function(pos)
-        minetest.get_meta(pos):set_string("infotext",
+        core.get_meta(pos):set_string("infotext",
             "Escalator Controller  |  Scanning for stairs…")
-        minetest.get_node_timer(pos):start(SCAN_INTERVAL)
+        core.get_node_timer(pos):start(SCAN_INTERVAL)
     end,
 
     on_destruct = function(pos)
         invalidate(pos)
-        local t = minetest.get_node_timer(pos)
+        local t = core.get_node_timer(pos)
         if t then t:stop() end
     end,
 
@@ -357,38 +322,11 @@ minetest.register_node("escalator:controller", {
         -- Force an immediate fresh scan.
         invalidate(pos)
         refresh_path(pos)
-        minetest.chat_send_player(
+        core.chat_send_player(
             clicker:get_player_name(),
             "[Escalator] " ..
-            minetest.get_meta(pos):get_string("infotext"):gsub("\n", "  |  "))
+            core.get_meta(pos):get_string("infotext"):gsub("\n", "  |  "))
         return itemstack
-    end,
-
-    on_place = function(itemstack, placer, pointed_thing)
-        if pointed_thing.type ~= "node" then return itemstack end
-        local above = pointed_thing.above
-        if not above then return itemstack end
-
-        local count = 0
-        local scan  = { x=above.x, y=above.y, z=above.z }
-        for _ = 1, MAX_STACK do
-            scan.y = scan.y - 1
-            if minetest.get_node(scan).name == "escalator:controller" then
-                count = count + 1
-            else
-                break
-            end
-        end
-
-        if count >= MAX_STACK then
-            if placer and placer:is_player() then
-                minetest.chat_send_player(placer:get_player_name(),
-                    "[Escalator] Stack limit of " .. MAX_STACK .. " reached!")
-            end
-            return itemstack
-        end
-
-        return minetest.item_place(itemstack, placer, pointed_thing)
     end,
 })
 
@@ -396,7 +334,7 @@ minetest.register_node("escalator:controller", {
 -- Craft recipe
 -- ---------------------------------------------------------------------------
 
-minetest.register_craft({
+core.register_craft({
     output = "escalator:controller",
     recipe = {
         { "",                    "default:mese_crystal",   ""                    },
@@ -409,18 +347,17 @@ minetest.register_craft({
 -- Dependency guard
 -- ---------------------------------------------------------------------------
 
-minetest.register_on_mods_loaded(function()
-    -- Count how many registered nodes are recognised as stairs.
+core.register_on_mods_loaded(function()
     local count = 0
-    for name, _ in pairs(minetest.registered_nodes) do
+    for name, _ in pairs(core.registered_nodes) do
         if is_stair(name) then count = count + 1 end
     end
     if count == 0 then
-        minetest.log("warning",
+        core.log("warning",
             "[escalator] No stair nodes detected in any registered mod. " ..
-            "Escalator transport will not activate until stair nodes are loaded.")
+            "Escalator transport will not activate.")
     else
-        minetest.log("action",
+        core.log("action",
             "[escalator] Detected " .. count .. " stair node(s) across loaded mods.")
     end
 end)
@@ -429,12 +366,12 @@ end)
 -- Debug command  (/escalator_info – look at controller or stand on stair)
 -- ---------------------------------------------------------------------------
 
-minetest.register_chatcommand("escalator_info", {
+core.register_chatcommand("escalator_info", {
     description = "Report escalator state at the controller you are looking at, " ..
                   "or the stair you are standing on.",
     privs = { interact = true },
     func = function(name, param)
-        local player = minetest.get_player_by_name(name)
+        local player = core.get_player_by_name(name)
         if not player then return false, "Player not found." end
 
         -- Check stair under player first.
@@ -451,22 +388,22 @@ minetest.register_chatcommand("escalator_info", {
         local look = player:get_look_dir()
         local far  = { x=eye.x+look.x*12, y=eye.y+look.y*12, z=eye.z+look.z*12 }
 
-        for pt in minetest.raycast(eye, far, false, false) do
+        for pt in core.raycast(eye, far, false, false) do
             if pt.type == "node" then
-                local n = minetest.get_node(pt.under)
+                local n = core.get_node(pt.under)
                 if n.name == "escalator:controller" then
                     local cpos = pt.under
                     invalidate(cpos)
                     local path, orient, dir = refresh_path(cpos)
                     return true, string.format(
                         "Controller @ %s  orient=%s  dir=%s  steps=%d",
-                        minetest.pos_to_string(cpos), orient, dir, #path)
+                        core.pos_to_string(cpos), orient, dir, #path)
                 end
             end
         end
 
         return false,
-            "Look at an escalator:controller, or stand on a stair_tinblock " ..
+            "Look at an escalator:controller, or stand on a stair node " ..
             "that belongs to an escalator."
     end,
 })
@@ -475,5 +412,5 @@ minetest.register_chatcommand("escalator_info", {
 -- Loaded
 -- ---------------------------------------------------------------------------
 
-minetest.log("action",
-    "[escalator] v5 loaded.  Stair detection: group-based (MTG + VoxeLibre compatible)")
+core.log("action",
+    "[escalator] loaded.  Stair detection: group-based (MTG + VoxeLibre compatible)")
