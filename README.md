@@ -1,7 +1,7 @@
 # escalator — Luanti (Minetest) Mod
 
 A fully functional escalator system that transports **players, NPCs, and mobs**
-smoothly along a diagonal stair incline built from `stairs:stair_tinblock` nodes.
+smoothly along any diagonal staircase.
 
 ---
 
@@ -10,14 +10,24 @@ smoothly along a diagonal stair incline built from `stairs:stair_tinblock` nodes
 | Feature | Detail |
 |---|---|
 | **Controller block** | `escalator:controller` – place at the base of a staircase |
-| **Direction** | Configurable **Up** or **Down** per controller |
-| **Orientation** | North / South / East / West cardinal facing |
-| **Transport** | Moves players, NPCs, and mobs via velocity override |
-| **Legacy mob support** | Positional nudge via ABM for mobs without `set_velocity` |
-| **Stack rule** | Controllers stack up to **10 high**, enforced on placement |
-| **Formspec UI** | Right-click the controller to configure |
+| **Auto-detection** | Direction and orientation detected automatically from stair layout |
+| **Transport** | Moves players and mobs via velocity override |
+| **Legacy mob support** | Positional nudge for mobs without `set_velocity` |
 | **Performance** | Scans only the active stair-path; no global entity sweeps |
-| **Tunable** | All speeds and lengths configurable via `settingtypes.txt` |
+| **Tunable** | All speeds and lengths configurable via the settings panel |
+| **Cross-gamepack** | Works with MTG, VoxeLibre/MineClone2, and any game with stair nodes |
+
+---
+
+## Compatibility
+
+- **Luanti** (formerly Minetest) ≥ 5.6
+- **MTG (Minetest Game)** — uses the `stair` group
+- **VoxeLibre / MineClone2** — uses the `mcl_stairs_half` group
+- Any other game whose stair nodes belong to the `stair` group or have `:stair` in their name
+- **mobs_redo / mobs_monster** — optional; supported via velocity/position fallback
+
+No hard dependencies — the mod loads on any game pack.
 
 ---
 
@@ -33,12 +43,11 @@ smoothly along a diagonal stair incline built from `stairs:stair_tinblock` nodes
   [steel][     ][steel]
 ```
 
-4. **Build** a staircase of `stairs:stair_tinblock` nodes rising diagonally from
-   where you'll place the controller.
+4. **Build** a diagonal staircase of any stair nodes rising away from where you'll
+   place the controller. Any stair type recognised by your game will work.
 5. **Place** the controller at the bottom (or top) of the staircase.
-6. **Right-click** the controller and set:
-   - **Direction** – Up or Down.
-   - **Orientation** – the cardinal direction the stairs face away from the controller.
+6. **Right-click** the controller — it will report the detected direction,
+   orientation, and step count.
 7. Step onto any stair — you'll be smoothly carried along!
 
 ---
@@ -55,20 +64,24 @@ For an **Up** escalator facing **North** (`-Z` axis):
 [CTRL]           ← controller at (x, y, z)
 ```
 
-The controller scans up to `MAX_STAIR_LENGTH` (default 32) steps along the diagonal.
-Scanning stops automatically when two consecutive stair positions are absent.
+The controller scans up to `escalator_max_stair_length` (default 32) steps along
+each diagonal. Scanning stops automatically when two consecutive stair positions
+are absent. The orientation and direction (up/down) are inferred from whichever
+diagonal has the most stair nodes — no manual configuration needed.
 
 ---
 
-## Configuration (`settingtypes.txt`)
+## Configuration
 
-| Setting | Default | Description |
-|---|---|---|
-| `escalator_h_speed` | `1.5` | Horizontal speed (nodes/s) |
-| `escalator_v_speed` | `1.5` | Vertical speed (nodes/s) |
-| `escalator_max_stair_length` | `32` | Max stair nodes scanned |
-| `escalator_timer_interval` | `0.15` | Controller timer interval (s) |
-| `escalator_max_stack` | `10` | Max controller stack height |
+Settings can be changed in the Luanti main-menu under **Settings → Mods → escalator**,
+or by adding them to `minetest.conf`:
+
+| Setting | Default | Range | Description |
+|---|---|---|---|
+| `escalator_h_speed` | `2.5` | 0.5 – 5.0 | Horizontal speed (nodes/s) |
+| `escalator_v_speed` | `3.0` | 0.5 – 5.0 | Vertical speed (nodes/s) |
+| `escalator_max_stair_length` | `32` | 4 – 128 | Max stair nodes scanned |
+| `escalator_timer_interval` | `1.0` | 0.05 – 1.0 | Controller refresh interval (s) |
 
 ---
 
@@ -77,17 +90,9 @@ Scanning stops automatically when two consecutive stair positions are absent.
 ```
 /escalator_info
 ```
-Look at a controller (within 8 nodes) and run this command to see its current
-configuration and how many stair steps were detected.
 
----
-
-## Compatibility
-
-- **Luanti** (formerly Minetest) ≥ 5.6
-- **stairs** mod (standard in almost all games)
-- **mobs_redo / mobs_monster** – supported via ABM positional nudge fallback
-- **MTG (Minetest Game)** – full compatibility
+Stand on a stair to see which escalator it belongs to and its direction, or look
+at a controller (within 12 nodes) to force a fresh scan and report step count.
 
 ---
 
